@@ -42,29 +42,36 @@ class ArbolInfeccion:
         print()
 
 class Tablero:
-    def __init__(self, medida_tablero: int):
-        self.tablero = [[0 for _ in range(medida_tablero)] for _ in range(medida_tablero)]
-        self.inicializado = False
+    def __init__(self, tamano: int, cantidad: int):
+        self.tamano = tamano
+        self.personas: List[Persona] = []
+        self.arbol = ArbolInfeccion()
+        self.ronda = 0
 
-    def agregar_personaje(self, personaje):
-        x, y = personaje.x, personaje.y
+        # Crear personas en posiciones aleatorias
+        posiciones = set()
+        for i in range(cantidad):
+            while True:
+                x = random.randint(0, tamano - 1)
+                y = random.randint(0, tamano - 1)
+                if (x, y) not in posiciones:
+                    posiciones.add((x, y))
+                    break
+            persona = Persona(f"p{i+1}", x, y)
+            self.personas.append(persona)
 
-        if not (0 <= x < len(self.tablero) and 0 <= y < len(self.tablero)):
-            raise ValueError(f"Coordenadas fuera del tablero: ({x}, {y})")
+        # Seleccionar paciente cero
+        paciente_cero = random.choice(self.personas)
+        paciente_cero.infectada = True
+        self.arbol.relaciones[paciente_cero.id] = []
+        print(f"Paciente cero: {paciente_cero.id}\n")
 
-        if not self.inicializado:
-            if self.tablero[x][y] != 0:
-                raise ValueError(f"La posición ({x}, {y}) ya está ocupada en la inicialización.")
-            self.tablero[x][y] = personaje
+    def obtener_celda(self, x: int, y: int) -> List[Persona]:
+        return [p for p in self.personas if p.x == x and p.y == y]
 
-        else:
-            actual = self.tablero[x][y]
-            if actual == 0:
-                self.tablero[x][y] = personaje
-            elif isinstance(actual, list):
-                actual.append(personaje)
-            else:
-                self.tablero[x][y] = [actual, personaje]
+    def mover(self) -> None:
+        movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1),
+                       (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
     def mover_personaje(self, personaje):
         movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
