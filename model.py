@@ -1,5 +1,5 @@
 import random
-from typing import Dict, List, Optional
+from typing import List, Optional, Dict
 
 
 class Persona:
@@ -13,6 +13,7 @@ class Persona:
     def __repr__(self):
         estado = "🟥" if self.infectada else "🟩"
         return f"{self.id}({estado}, D={self.defensa})"
+
 
 class ArbolInfeccion:
     def __init__(self):
@@ -29,9 +30,11 @@ class ArbolInfeccion:
         if persona_id in self.infectadores:
             padre = self.infectadores[persona_id]
             hijos = self.relaciones.get(persona_id, [])
-
+            # reparenting: conectar hijos con el infectador original
             if padre:
                 self.relaciones[padre].extend(hijos)
+            for h in hijos:
+                self.infectadores[h] = padre
             self.relaciones.pop(persona_id, None)
             self.infectadores.pop(persona_id, None)
 
@@ -41,6 +44,7 @@ class ArbolInfeccion:
             print(f"  {infectador} → {', '.join(hijos)}")
         print()
 
+
 class Tablero:
     def __init__(self, tamano: int, cantidad: int):
         self.tamano = tamano
@@ -48,7 +52,6 @@ class Tablero:
         self.arbol = ArbolInfeccion()
         self.ronda = 0
 
-        # Crear personas en posiciones aleatorias
         posiciones = set()
         for i in range(cantidad):
             while True:
@@ -57,14 +60,14 @@ class Tablero:
                 if (x, y) not in posiciones:
                     posiciones.add((x, y))
                     break
-            persona = Persona(f"p{i+1}", x, y)
+            persona = Persona(f"p{i + 1}", x, y)
             self.personas.append(persona)
 
-        # Seleccionar paciente cero
+        # Paciente cero
         paciente_cero = random.choice(self.personas)
         paciente_cero.infectada = True
         self.arbol.relaciones[paciente_cero.id] = []
-        print(f"Paciente cero: {paciente_cero.id}\n")
+        print(f"🧬 Paciente cero: {paciente_cero.id}\n")
 
     def obtener_celda(self, x: int, y: int) -> List[Persona]:
         return [p for p in self.personas if p.x == x and p.y == y]
@@ -72,21 +75,55 @@ class Tablero:
     def mover(self) -> None:
         movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1),
                        (-1, -1), (-1, 1), (1, -1), (1, 1)]
-    
+        for persona in self.personas:
+            dx, dy = random.choice(movimientos)
+            nx, ny = persona.x + dx, persona.y + dy
+            # modo rebote
+            if nx < 0 or nx >= self.tamano:
+                nx = persona.x
+            if ny < 0 or ny >= self.tamano:
+                ny = persona.y
+            persona.x, persona.y = nx, ny
+            
     def procesar_contagio(self) -> None:
+        """
+        Procesa contagios *solo* entre personas que comparten exactamente la misma celda.
+        Se calcula todo en una pasada y se aplica al final para evitar contagios encadenados en la misma ronda.
+        """
+        # lista de (infectador_id, objeto_persona_infectado) a aplicar después
+        nuevas_infecciones: List[(str, "Persona")] = []
+
+        # recorrer cada celda del tablero
         for x in range(self.tamano):
             for y in range(self.tamano):
-                celda = self.obtener_celda(x, y)
+                celda = [p for p in self.personas if p.x == x and p.y == y]
+                if not celda:
+                    continue
+
                 infectados = [p for p in celda if p.infectada]
                 sanos = [p for p in celda if not p.infectada]
-                if infectados and sanos:
-                    for s in sanos:
-                        s.defensa -= len(infectados)
-                        if s.defensa <= 0:
-                            s.infectada = True
-                            s.defensa = 0
-                            infectador = random.choice(infectados)
-                            self.arbol.agregar_contagio(infectador.id, s.id)
+
+                if not infectados or not sanos:
+                    continue
+
+                # Cada sano pierde 1 defensa por cada infectado en la misma celda
+                for s in sanos:
+                    s.defensa -= len(infectados)
+                    # debug opcional: imprimir lo ocurrido
+                    # print(f"DEBUG: {s.id} perdió {len(infectados)} defensa en ({x},{y}), queda {s.defensa}")
+                    if s.defensa <= 0:
+                        # marcar para infectar al final; elegimos un infectador al azar entre los infectados actuales
+                        infectador = random.choice(infectados)
+                        nuevas_infecciones.append((infectador.id, s))
+
+        # aplicar las infecciones ya decididas (una sola vez por persona)
+        for infectador_id, persona_obj in nuevas_infecciones:
+            if not persona_obj.infectada:  # doble chequeo para evitar re-infectar
+                persona_obj.infectada = True
+                persona_obj.defensa = 0
+                self.arbol.agregar_contagio(infectador_id, persona_obj.id)
+                # debug opcional:
+                # print(f"DEBUG: {persona_obj.id} fue infectado por {infectador_id}")
 
     def aumentar_defensa(self) -> None:
         for p in self.personas:
@@ -137,25 +174,3 @@ class Tablero:
         self.mostrar_tablero()
         self.mostrar_personas()
         self.arbol.mostrar()
-
-
-class Sanos:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.nd = 3
-
-    def curar(self, x, y):
-        pass
-
-class Infectado:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-    def infectar(self, x, y):
-        pass
-
-
-
-
