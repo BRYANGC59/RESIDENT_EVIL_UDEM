@@ -72,76 +72,71 @@ class Tablero:
     def mover(self) -> None:
         movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1),
                        (-1, -1), (-1, 1), (1, -1), (1, 1)]
+    
+    def procesar_contagio(self) -> None:
+        for x in range(self.tamano):
+            for y in range(self.tamano):
+                celda = self.obtener_celda(x, y)
+                infectados = [p for p in celda if p.infectada]
+                sanos = [p for p in celda if not p.infectada]
+                if infectados and sanos:
+                    for s in sanos:
+                        s.defensa -= len(infectados)
+                        if s.defensa <= 0:
+                            s.infectada = True
+                            s.defensa = 0
+                            infectador = random.choice(infectados)
+                            self.arbol.agregar_contagio(infectador.id, s.id)
 
-    def mover_personaje(self, personaje):
-        movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+    def aumentar_defensa(self) -> None:
+        for p in self.personas:
+            if not p.infectada:
+                p.defensa += 1
 
-        x, y = personaje.x, personaje.y
-        posibles_movimientos = []
+    def curar(self, persona_id: str) -> None:
+        for p in self.personas:
+            if p.id == persona_id and p.infectada:
+                p.infectada = False
+                p.defensa = 3
+                self.arbol.eliminar_nodo(p.id)
+                print(f"💉 {persona_id} ha sido curado.")
+                return
+        print(f"No se encontró persona infectada con ID {persona_id}.")
 
-        for dx, dy in movimientos:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < len(self.tablero) and 0 <= ny < len(self.tablero):
-                posibles_movimientos.append((nx, ny))
+    def agregar_persona(self, id_persona: str, x: int, y: int) -> None:
+        if not (0 <= x < self.tamano and 0 <= y < self.tamano):
+            print("⚠ Coordenadas fuera del tablero.")
+            return
+        nueva = Persona(id_persona, x, y)
+        self.personas.append(nueva)
+        print(f"🧍‍♂ {id_persona} agregada en ({x},{y})")
 
-        if not posibles_movimientos:
-            return False
-
-        nx, ny = random.choice(posibles_movimientos)
-        actual = self.tablero[x][y]
-        if isinstance(actual, list):
-            actual.remove(personaje)
-            if len(actual) == 1:
-                self.tablero[x][y] = actual[0]
-            elif len(actual) == 0:
-                self.tablero[x][y] = 0
-        else:
-            self.tablero[x][y] = 0
-
-        personaje.x, personaje.y = nx, ny
-
-        nuevo = self.tablero[nx][ny]
-        if nuevo == 0:
-            self.tablero[nx][ny] = personaje
-        elif isinstance(nuevo, list):
-            nuevo.append(personaje)
-        else:
-            self.tablero[nx][ny] = [nuevo, personaje]
-
-        return True
-
-    def mostrar_tablero(self):
-        for fila in self.tablero:
-            fila_str = []
-            for celda in fila:
-                if celda == 0:
-                    fila_str.append(".")
-                elif isinstance(celda, list):
-                    # Mostrar 'S' o 'I' si solo hay un tipo, o el número si hay mezcla
-                    tipos = set(type(p) for p in celda)
-                    if len(tipos) == 1:
-                        tipo = tipos.pop()
-                        if tipo == Sanos:
-                            fila_str.append("S")
-                        elif tipo == Infectado:
-                            fila_str.append("I")
-                        else:
-                            fila_str.append("?")
-                    else:
-                        # Mezcla de tipos en la celda, mostrar número de personajes
-                        fila_str.append(str(len(celda)))
-                else:
-                    if isinstance(celda, Sanos):
-                        fila_str.append("S")
-                    elif isinstance(celda, Infectado):
-                        fila_str.append("I")
-                    else:
-                        fila_str.append("?")
-            print(" ".join(fila_str))
+    def mostrar_tablero(self) -> None:
+        matriz = [["⚪" for _ in range(self.tamano)] for _ in range(self.tamano)]
+        for p in self.personas:
+            matriz[p.x][p.y] = "🟥" if p.infectada else "🟩"
+        print("🧫 Estado del tablero:")
+        for fila in matriz:
+            print(" ".join(fila))
         print()
 
-    def marcar_inicializado(self):
-        self.inicializado = True
+    def mostrar_personas(self) -> None:
+        print("👥 Estado de las personas:")
+        for p in self.personas:
+            estado = "INFECTADO" if p.infectada else "SANO"
+            print(f"  {p.id} → {estado}, Defensa={p.defensa}, Pos=({p.x},{p.y})")
+        print()
+
+    def ronda_manual(self) -> None:
+        self.ronda += 1
+        print(f"\n===== RONDA {self.ronda} =====")
+        self.mover()
+        self.procesar_contagio()
+        if self.ronda % 3 == 0:
+            self.aumentar_defensa()
+        self.mostrar_tablero()
+        self.mostrar_personas()
+        self.arbol.mostrar()
 
 
 class Sanos:
