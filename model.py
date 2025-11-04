@@ -163,18 +163,4 @@ class Infectado:
 
 
 
-t = Tablero(5)
-s1 = Sanos(1, 2)
-i1 = Infectado(3, 4)
-s2 = Sanos(1,3)
-t.agregar_personaje(s1)
-t.agregar_personaje(i1)
-t.marcar_inicializado()
-t.agregar_personaje(s2)
-
-t.mostrar_tablero()
-t.mover_personaje(s1)
-t.mostrar_tablero()
-t.mover_personaje(s1)
-t.mostrar_tablero()
 
