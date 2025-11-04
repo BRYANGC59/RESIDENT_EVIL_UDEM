@@ -1,4 +1,6 @@
 import random
+from typing import Dict, List, Optional
+
 
 class Persona:
     def __init__(self, id_persona: str, x: int, y: int):
@@ -11,6 +13,33 @@ class Persona:
     def __repr__(self):
         estado = "🟥" if self.infectada else "🟩"
         return f"{self.id}({estado}, D={self.defensa})"
+
+class ArbolInfeccion:
+    def __init__(self):
+        self.relaciones: Dict[str, List[str]] = {}
+        self.infectadores: Dict[str, Optional[str]] = {}
+
+    def agregar_contagio(self, infectador: str, infectado: str) -> None:
+        if infectador not in self.relaciones:
+            self.relaciones[infectador] = []
+        self.relaciones[infectador].append(infectado)
+        self.infectadores[infectado] = infectador
+
+    def eliminar_nodo(self, persona_id: str) -> None:
+        if persona_id in self.infectadores:
+            padre = self.infectadores[persona_id]
+            hijos = self.relaciones.get(persona_id, [])
+
+            if padre:
+                self.relaciones[padre].extend(hijos)
+            self.relaciones.pop(persona_id, None)
+            self.infectadores.pop(persona_id, None)
+
+    def mostrar(self) -> None:
+        print("🌳 Árbol de infección:")
+        for infectador, hijos in self.relaciones.items():
+            print(f"  {infectador} → {', '.join(hijos)}")
+        print()
 
 class Tablero:
     def __init__(self, medida_tablero: int):
