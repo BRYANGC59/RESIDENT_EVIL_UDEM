@@ -1,5 +1,16 @@
 import random
 
+class Persona:
+    def __init__(self, id_persona: str, x: int, y: int):
+        self.id = id_persona
+        self.x = x
+        self.y = y
+        self.infectada = False
+        self.defensa = 3
+
+    def __repr__(self):
+        estado = "🟥" if self.infectada else "🟩"
+        return f"{self.id}({estado}, D={self.defensa})"
 
 class Tablero:
     def __init__(self, medida_tablero: int):
