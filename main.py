@@ -11,7 +11,7 @@ class SimuladorApp:
         self.root.geometry("600x400")
         self.root.configure(bg="#111")
 
-        # Pantalla de inicio
+        
         self.titulo = tk.Label(
             self.root,
             text="🧬 Resident Evil UDEM",
@@ -42,9 +42,8 @@ class SimuladorApp:
         )
         self.boton_inicio.pack(pady=40)
 
-    # ================== PANTALLA DE CONFIGURACIÓN ==================
+
     def mostrar_configuracion(self):
-        # Cerrar pantalla de inicio
         self.titulo.pack_forget()
         self.subtitulo.pack_forget()
         self.boton_inicio.pack_forget()
@@ -59,7 +58,6 @@ class SimuladorApp:
             fg="#00ffcc", bg="#1a1a1a", font=("Arial Black", 16)
         ).pack(pady=20)
 
-        # Entradas
         tk.Label(self.config_window, text="Tamaño del tablero (N):", fg="white", bg="#1a1a1a").pack()
         self.entry_tamano = tk.Entry(self.config_window, justify="center")
         self.entry_tamano.pack(pady=5)
@@ -77,7 +75,7 @@ class SimuladorApp:
             font=("Arial", 12, "bold")
         ).pack(pady=20)
 
-    # ================== CREAR EL TABLERO ==================
+
     def iniciar_simulacion(self):
         try:
             tamano = int(self.entry_tamano.get())
@@ -91,16 +89,12 @@ class SimuladorApp:
             return
 
         self.config_window.destroy()
-
-        # Crear tablero
         self.root.configure(bg="white")
         random.seed()
         self.tablero = Tablero(tamano=tamano, cantidad=cantidad)
-
-        # Interfaz principal
         self.crear_interfaz_principal()
 
-    # ================== INTERFAZ PRINCIPAL ==================
+
     def crear_interfaz_principal(self):
         self.canvas = tk.Canvas(self.root, width=360, height=360, bg="white")
         self.canvas.grid(row=0, column=0, padx=10, pady=10)
@@ -115,6 +109,8 @@ class SimuladorApp:
             ("▶ Siguiente ronda", self.siguiente_ronda),
             ("💉 Curar persona", self.curar_persona),
             ("➕ Agregar persona", self.agregar_persona),
+            ("💣 Bomba de sanación", self.activar_bomba_sanacion),
+            ("😈 Activar modo furia", self.modo_furia),
             ("🌳 Ver árbol de infección", self.mostrar_arbol),
             ("🛑 Salir", self.root.quit),
         ]
@@ -125,7 +121,7 @@ class SimuladorApp:
 
         self.actualizar_tablero()
 
-    # ================== LÓGICA DEL TABLERO ==================
+
     def actualizar_tablero(self):
         self.canvas.delete("all")
         celdas = self.tablero.tamano
@@ -141,7 +137,14 @@ class SimuladorApp:
             x, y = persona.y, persona.x
             x1, y1 = x * tam + 5, y * tam + 5
             x2, y2 = x1 + tam - 10, y1 + tam - 10
-            color = "red" if persona.infectada else "green"
+
+            if persona.id == self.tablero.infectado_furioso:
+                color = "purple"
+            elif persona.infectada:
+                color = "red"
+            else:
+                color = "green"
+
             self.canvas.create_oval(x1, y1, x2, y2, fill=color)
             self.canvas.create_text(x1 + (tam / 2) - 5, y1 + (tam / 2) - 5, text=persona.id, fill="white")
 
@@ -149,7 +152,6 @@ class SimuladorApp:
         infectados = sum(p.infectada for p in self.tablero.personas)
         self.info_label.config(text=f"Ronda: {self.tablero.ronda} | 🟩 Sanos: {sanos} | 🟥 Infectados: {infectados}")
 
-    # ================== BOTONES ==================
     def siguiente_ronda(self):
         self.tablero.ronda_manual()
         self.actualizar_tablero()
@@ -173,12 +175,40 @@ class SimuladorApp:
             self.tablero.agregar_persona(nuevo_id, x, y)
             self.actualizar_tablero()
 
-    # ================== ÁRBOL ==================
-    def mostrar_arbol(self):
-        for window in self.root.winfo_children():
-            if isinstance(window, Toplevel) and window.title() == "🌳 Árbol de infección":
-                window.destroy()
+    def activar_bomba_sanacion(self):
+        celdas = self.tablero.tamano
+        x = random.randint(0, celdas - 1)
+        y = random.randint(0, celdas - 1)
+        radio = max(1, self.tablero.tamano // 4)
 
+        self.tablero.lanzar_bomba_sanacion(x, y, radio)
+        self.actualizar_tablero()
+
+        tam = 360 // celdas
+        for i in range(x - radio, x + radio + 1):
+            for j in range(y - radio, y + radio + 1):
+                if 0 <= i < celdas and 0 <= j < celdas:
+                    x1, y1 = j * tam, i * tam
+                    x2, y2 = x1 + tam, y1 + tam
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="skyblue", outline="blue", width=2, stipple="gray25")
+
+        self.root.after(1500, self.actualizar_tablero)
+        messagebox.showinfo("💚 Bomba de sanación", f"Bomba cayó en ({x}, {y}) con radio {radio}")
+
+    def modo_furia(self):
+        from tkinter import simpledialog
+        persona_id = simpledialog.askstring("Modo Furia", "Ingrese el ID del infectado (p1, p2, ...):")
+        if persona_id:
+            exito = self.tablero.activar_modo_furia(persona_id)
+            if exito:
+                messagebox.showinfo("😈 Modo Furia activado",
+                                    f"El infectado {persona_id} ahora infectará automáticamente "
+                                    "a cualquier persona que toque.")
+            else:
+                messagebox.showwarning("Error", "El ID ingresado no corresponde a un infectado.")
+
+
+    def mostrar_arbol(self):
         ventana_arbol = Toplevel(self.root)
         ventana_arbol.title("🌳 Árbol de infección")
         canvas_arbol = tk.Canvas(ventana_arbol, width=800, height=500, bg="white")
@@ -230,12 +260,16 @@ class SimuladorApp:
 
         for nodo, (x, y) in nodos_pos.items():
             persona = next((p for p in self.tablero.personas if p.id == nodo), None)
-            color = "red" if persona and persona.infectada else "green"
+            if persona and persona.id == self.tablero.infectado_furioso:
+                color = "purple"
+            elif persona and persona.infectada:
+                color = "red"
+            else:
+                color = "green"
             canvas.create_oval(x - 20, y - 20, x + 20, y + 20, fill=color, outline="black")
             canvas.create_text(x, y, text=nodo, fill="white", font=("Arial", 10, "bold"))
 
 
-# ================== EJECUCIÓN ==================
 if __name__ == "__main__":
     root = tk.Tk()
     app = SimuladorApp(root)

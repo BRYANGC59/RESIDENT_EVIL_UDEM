@@ -1,99 +1,78 @@
 import random
-from typing import List, Optional, Dict
-
 
 class Persona:
-    def __init__(self, id_persona: str, x: int, y: int):
-        self.id = id_persona
+    def __init__(self, id: str, x: int, y: int, infectada=False):
+        self.id = id
         self.x = x
         self.y = y
-        self.infectada = False
-        self.defensa = 3
+        self.infectada = infectada
+        self.defensa = 3  
 
-    def __repr__(self):
-        estado = "🟥" if self.infectada else "🟩"
-        return f"{self.id}({estado}, D={self.defensa})"
+    def mover(self, limite):
+        dx = random.choice([-1, 0, 1])
+        dy = random.choice([-1, 0, 1])
+        self.x = (self.x + dx) % limite
+        self.y = (self.y + dy) % limite
 
 
 class ArbolInfeccion:
     def __init__(self):
-        self.relaciones: Dict[str, List[str]] = {}
-        self.infectadores: Dict[str, Optional[str]] = {}
+        self.relaciones = {}  
 
-    def agregar_contagio(self, infectador: str, infectado: str) -> None:
+    def agregar_contagio(self, infectador, infectado):
         if infectador not in self.relaciones:
             self.relaciones[infectador] = []
         self.relaciones[infectador].append(infectado)
-        self.infectadores[infectado] = infectador
 
-    def eliminar_nodo(self, persona_id: str) -> None:
-        if persona_id in self.infectadores:
-            padre = self.infectadores[persona_id]
-            hijos = self.relaciones.get(persona_id, [])
-            # reparenting: conectar hijos con el infectador original
-            if padre:
-                self.relaciones[padre].extend(hijos)
-            for h in hijos:
-                self.infectadores[h] = padre
-            self.relaciones.pop(persona_id, None)
-            self.infectadores.pop(persona_id, None)
-
-    def mostrar(self) -> None:
-        print("🌳 Árbol de infección:")
-        for infectador, hijos in self.relaciones.items():
-            print(f"  {infectador} → {', '.join(hijos)}")
-        print()
+    def eliminar_nodo(self, nodo):
+       
+        if nodo in self.relaciones:
+            self.relaciones.pop(nodo)
+        for hijos in self.relaciones.values():
+            if nodo in hijos:
+                hijos.remove(nodo)
 
 
 class Tablero:
-    def __init__(self, tamano: int, cantidad: int):
+    def __init__(self, tamano=6, cantidad=5):
         self.tamano = tamano
-        self.personas: List[Persona] = []
+        self.personas = []
         self.arbol = ArbolInfeccion()
         self.ronda = 0
+        self.poder_infectados = 1
+        self.infectado_furioso = None  
 
-        posiciones = set()
+   
         for i in range(cantidad):
-            while True:
-                x = random.randint(0, tamano - 1)
-                y = random.randint(0, tamano - 1)
-                if (x, y) not in posiciones:
-                    posiciones.add((x, y))
-                    break
-            persona = Persona(f"p{i + 1}", x, y)
-            self.personas.append(persona)
+            x, y = random.randint(0, tamano - 1), random.randint(0, tamano - 1)
+            infectada = (i == 0)
+            self.personas.append(Persona(f"p{i + 1}", x, y, infectada))
 
-        # Paciente cero
-        paciente_cero = random.choice(self.personas)
-        paciente_cero.infectada = True
-        self.arbol.relaciones[paciente_cero.id] = []
-        print(f"🧬 Paciente cero: {paciente_cero.id}\n")
+    def agregar_persona(self, id, x, y):
+        self.personas.append(Persona(id, x, y, infectada=False))
 
-    def obtener_celda(self, x: int, y: int) -> List[Persona]:
-        return [p for p in self.personas if p.x == x and p.y == y]
+    def curar(self, id):
+        persona = next((p for p in self.personas if p.id == id), None)
+        if persona:
+            persona.infectada = False
+            persona.defensa = 3
+            self.arbol.eliminar_nodo(persona.id)
+            if persona.id == self.infectado_furioso:
+                self.infectado_furioso = None
+            print(f"🩺 {id} fue curado con éxito.")
 
-    def mover(self) -> None:
-        movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                       (-1, -1), (-1, 1), (1, -1), (1, 1)]
-        for persona in self.personas:
-            dx, dy = random.choice(movimientos)
-            nx, ny = persona.x + dx, persona.y + dy
-            # modo rebote
-            if nx < 0 or nx >= self.tamano:
-                nx = persona.x
-            if ny < 0 or ny >= self.tamano:
-                ny = persona.y
-            persona.x, persona.y = nx, ny
-            
-    def procesar_contagio(self) -> None:
+    def mover_personas(self):
+        for p in self.personas:
+            p.mover(self.tamano)
+
+    def procesar_contagio(self):
         """
-        Procesa contagios *solo* entre personas que comparten exactamente la misma celda.
-        Se calcula todo en una pasada y se aplica al final para evitar contagios encadenados en la misma ronda.
+        Procesa contagios entre personas que comparten la misma celda.
+        Si hay un infectado furioso, infecta automáticamente UNA VEZ y luego se desactiva el modo furia.
         """
-        # lista de (infectador_id, objeto_persona_infectado) a aplicar después
-        nuevas_infecciones: List[(str, "Persona")] = []
+        nuevas_infecciones = []
+        furia_usada = False 
 
-        # recorrer cada celda del tablero
         for x in range(self.tamano):
             for y in range(self.tamano):
                 celda = [p for p in self.personas if p.x == x and p.y == y]
@@ -106,71 +85,66 @@ class Tablero:
                 if not infectados or not sanos:
                     continue
 
-                # Cada sano pierde 1 defensa por cada infectado en la misma celda
                 for s in sanos:
-                    s.defensa -= len(infectados)
-                    # debug opcional: imprimir lo ocurrido
-                    # print(f"DEBUG: {s.id} perdió {len(infectados)} defensa en ({x},{y}), queda {s.defensa}")
-                    if s.defensa <= 0:
-                        # marcar para infectar al final; elegimos un infectador al azar entre los infectados actuales
-                        infectador = random.choice(infectados)
-                        nuevas_infecciones.append((infectador.id, s))
+                    
+                    if self.infectado_furioso and any(
+                            p.id == self.infectado_furioso for p in infectados) and not furia_usada:
+                        print(f"💥 {s.id} fue infectado por el furioso {self.infectado_furioso}")
+                        nuevas_infecciones.append((self.infectado_furioso, s))
+                        furia_usada = True 
+                    else:
+                        
+                        s.defensa -= len(infectados) * self.poder_infectados
+                        if s.defensa <= 0:
+                            infectador = random.choice(infectados)
+                            nuevas_infecciones.append((infectador.id, s))
 
-        # aplicar las infecciones ya decididas (una sola vez por persona)
+        
         for infectador_id, persona_obj in nuevas_infecciones:
-            if not persona_obj.infectada:  # doble chequeo para evitar re-infectar
+            if not persona_obj.infectada:
                 persona_obj.infectada = True
                 persona_obj.defensa = 0
                 self.arbol.agregar_contagio(infectador_id, persona_obj.id)
-                # debug opcional:
-                # print(f"DEBUG: {persona_obj.id} fue infectado por {infectador_id}")
 
-    def aumentar_defensa(self) -> None:
-        for p in self.personas:
-            if not p.infectada:
-                p.defensa += 1
+        
+        if furia_usada:
+            print(f"😴 {self.infectado_furioso} ha perdido el modo furia tras infectar a una persona.")
+            self.infectado_furioso = None
 
-    def curar(self, persona_id: str) -> None:
-        for p in self.personas:
-            if p.id == persona_id and p.infectada:
-                p.infectada = False
-                p.defensa = 3
-                self.arbol.eliminar_nodo(p.id)
-                print(f"💉 {persona_id} ha sido curado.")
-                return
-        print(f"No se encontró persona infectada con ID {persona_id}.")
-
-    def agregar_persona(self, id_persona: str, x: int, y: int) -> None:
-        if not (0 <= x < self.tamano and 0 <= y < self.tamano):
-            print("⚠ Coordenadas fuera del tablero.")
-            return
-        nueva = Persona(id_persona, x, y)
-        self.personas.append(nueva)
-        print(f"🧍‍♂ {id_persona} agregada en ({x},{y})")
-
-    def mostrar_tablero(self) -> None:
-        matriz = [["⚪" for _ in range(self.tamano)] for _ in range(self.tamano)]
-        for p in self.personas:
-            matriz[p.x][p.y] = "🟥" if p.infectada else "🟩"
-        print("🧫 Estado del tablero:")
-        for fila in matriz:
-            print(" ".join(fila))
-        print()
-
-    def mostrar_personas(self) -> None:
-        print("👥 Estado de las personas:")
-        for p in self.personas:
-            estado = "INFECTADO" if p.infectada else "SANO"
-            print(f"  {p.id} → {estado}, Defensa={p.defensa}, Pos=({p.x},{p.y})")
-        print()
-
-    def ronda_manual(self) -> None:
-        self.ronda += 1
-        print(f"\n===== RONDA {self.ronda} =====")
-        self.mover()
+    def ronda_manual(self):
+        self.mover_personas()
         self.procesar_contagio()
-        if self.ronda % 3 == 0:
-            self.aumentar_defensa()
-        self.mostrar_tablero()
-        self.mostrar_personas()
-        self.arbol.mostrar()
+        self.ronda += 1
+
+    def lanzar_bomba_sanacion(self, x: int, y: int, radio: int = None):
+        """
+        Crea una zona de sanación centrada en (x, y) con radio = tamaño_tablero / 4.
+        """
+        if radio is None:
+            radio = max(1, self.tamano // 4)
+
+        print(f"💚 Bomba de sanación activada en ({x}, {y}) con radio {radio}")
+
+        for persona in self.personas:
+            if abs(persona.x - x) <= radio and abs(persona.y - y) <= radio:
+                persona.defensa = min(persona.defensa + 1, 5)
+                if persona.infectada and persona.defensa >= 3:
+                    persona.infectada = False
+                    if hasattr(self, "arbol"):
+                        self.arbol.eliminar_nodo(persona.id)
+                    if persona.id == self.infectado_furioso:
+                        self.infectado_furioso = None
+                    print(f"🩺 {persona.id} fue curado por la bomba de sanación")
+
+    def activar_modo_furia(self, persona_id: str) -> bool:
+        """
+        Activa el modo furia para un infectado.
+        """
+        persona = next((p for p in self.personas if p.id == persona_id), None)
+        if persona and persona.infectada:
+            self.infectado_furioso = persona_id
+            print(f"😈 {persona_id} ha entrado en MODO FURIA!")
+            return True
+        else:
+            print(f"❌ {persona_id} no está infectado o no existe.")
+            return False
