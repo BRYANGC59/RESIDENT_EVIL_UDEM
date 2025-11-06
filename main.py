@@ -176,24 +176,41 @@ class SimuladorApp:
             self.actualizar_tablero()
 
     def activar_bomba_sanacion(self):
-        celdas = self.tablero.tamano
-        x = random.randint(0, celdas - 1)
-        y = random.randint(0, celdas - 1)
-        radio = max(1, self.tablero.tamano // 4)
+        # Lanza la bomba y obtiene su posición central
+        x, y = self.tablero.lanzar_bomba_sanacion()
 
-        self.tablero.lanzar_bomba_sanacion(x, y, radio)
+        # Actualiza el tablero lógico (curaciones)
         self.actualizar_tablero()
 
+        # Tamaño de cada celda
+        celdas = self.tablero.tamano
         tam = 360 // celdas
-        for i in range(x - radio, x + radio + 1):
-            for j in range(y - radio, y + radio + 1):
-                if 0 <= i < celdas and 0 <= j < celdas:
-                    x1, y1 = j * tam, i * tam
-                    x2, y2 = x1 + tam, y1 + tam
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="skyblue", outline="blue", width=2, stipple="gray25")
 
+        # Calcula las posiciones afectadas (9 celdas alrededor)
+        posiciones_afectadas = [
+            (x + dx, y + dy)
+            for dx in (-1, 0, 1)
+            for dy in (-1, 0, 1)
+            if 0 <= x + dx < celdas and 0 <= y + dy < celdas
+        ]
+
+        # Dibuja el efecto visual de la bomba
+        for (i, j) in posiciones_afectadas:
+            x1, y1 = j * tam, i * tam
+            x2, y2 = x1 + tam, y1 + tam
+            self.canvas.create_rectangle(
+                x1, y1, x2, y2,
+                fill="skyblue", outline="blue", width=2, stipple="gray25"
+            )
+
+        # Refresca el tablero después del efecto
         self.root.after(1500, self.actualizar_tablero)
-        messagebox.showinfo("💚 Bomba de sanación", f"Bomba cayó en ({x}, {y}) con radio {radio}")
+
+        # Mensaje informativo
+        messagebox.showinfo(
+            "💚 Bomba de sanación",
+            f"¡Bomba activada en ({x}, {y})! Las celdas adyacentes fueron curadas."
+        )
 
     def modo_furia(self):
         from tkinter import simpledialog
