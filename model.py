@@ -111,7 +111,7 @@ class Tablero:
                 else:
                     account[current[1]].append(current[0])
 
-                if gt.relaciones[current[0]]:
+                if gt.relaciones.get(current[0]):
                     for i in gt.relaciones[current[0]]:
                         pv.append((i, current[1] + 1))
             return account

@@ -108,6 +108,7 @@ class SimuladorApp:
         botones = [
             ("▶ Siguiente ronda", self.siguiente_ronda),
             ("💉 Curar persona", self.curar_persona),
+            ("💉 Curar nivel de infeccion", self.curar_nivel),
             ("➕ Agregar persona", self.agregar_persona),
             ("💣 Bomba de sanación", self.activar_bomba_sanacion),
             ("😈 Activar modo furia", self.modo_furia),
@@ -165,6 +166,19 @@ class SimuladorApp:
         if persona_id:
             self.tablero.curar(persona_id)
             self.actualizar_tablero()
+
+    def curar_nivel(self):
+        from tkinter import simpledialog
+
+        nivel = simpledialog.askinteger("Curar nivel", "Ingrese el número de nivel a curar:")
+
+        if nivel is not None:
+            try:
+                self.tablero.curar_k_nivel(nivel)
+                self.actualizar_tablero()
+                messagebox.showinfo("✅ Curación exitosa", f"Se han curado todos los infectados del nivel {nivel}.")
+            except ValueError as e:
+                messagebox.showwarning("Error", str(e))
 
     def agregar_persona(self):
         from tkinter import simpledialog
