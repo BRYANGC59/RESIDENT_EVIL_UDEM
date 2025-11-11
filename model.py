@@ -46,7 +46,7 @@ class Tablero:
         self.personas = []
         self.arbol = ArbolInfeccion()
         self.ronda = 0
-        self.infectado_furioso = None  
+        self.infectado_furioso = None
 
         for i in range(cantidad):
             x, y = random.randint(0, tamano - 1), random.randint(0, tamano - 1)
@@ -94,6 +94,35 @@ class Tablero:
                 self.infectado_furioso = None
             print(f"🩺 {id} fue curado con éxito.")
 
+
+    def curar_k_nivel(self, k: int):
+        def bfs(gt: ArbolInfeccion):
+            if not gt:
+                return 'The tree is empty'
+
+            root = next(iter(gt.relaciones))
+            pv = [(root, 1)]
+            account = {}
+
+            while pv:
+                current = pv.pop(0)
+                if current[1] not in account:
+                    account[current[1]] = [current[0]]
+                else:
+                    account[current[1]].append(current[0])
+
+                if gt.relaciones[current[0]]:
+                    for i in gt.relaciones[current[0]]:
+                        pv.append((i, current[1] + 1))
+            return account
+        niveles = bfs(self.arbol)
+        if not k in niveles:
+            raise ValueError('El nivel ingresado no es valido')
+        eliminar = niveles[k]
+        while eliminar:
+            self.curar(eliminar.pop())
+        print(f'Se han curado todos los infectados del nivel {k}')
+
     def mover_personas(self):
         print("\n🚶 Moviendo personas...")
         for p in self.personas:
@@ -129,9 +158,10 @@ class Tablero:
                             furia_usada = True
                             continue
 
-                        print(f"💥 {s.id} fue infectado por el furioso {self.infectado_furioso}")
-                        nuevas_infecciones.append((self.infectado_furioso, s))
-                        furia_usada = True 
+                        if furioso_presente:
+                            print(f"💥 {s.id} fue infectado por {infectados[0]}")
+                            nuevas_infecciones.append((infectados[0], s))
+                            furia_usada = True
                     else:
                         s.defensa -= 1
                         print(f"🛡️ {s.id} pierde defensa, ahora tiene {s.defensa}")
@@ -185,12 +215,10 @@ class Tablero:
         if self.infectado_furioso and not any(p.id == self.infectado_furioso and p.infectada for p in self.personas):
             print("😴 El infectado furioso ha sido curado y perdió su furia.")
             self.infectado_furioso = None
-
-        return x, y
-
         if self.infectado_furioso and not any(p.id == self.infectado_furioso and p.infectada for p in self.personas):
             self.infectado_furioso = None
             print("😴 El infectado furioso ha sido curado y perdió su furia.")
+        return x, y
 
     def activar_modo_furia(self, persona_id):
         persona_encontrada = None
